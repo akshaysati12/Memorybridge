@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MemoryBridge Dashboard</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel2: #1e2740; --line: #2a3550;
+    --txt: #e6ebf5; --dim: #8b98b5; --accent: #4f9dff; --ok: #37d399;
+    --warn: #ffb454; --bad: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--txt);
+    font: 14px/1.5 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .sub { color: var(--dim); font-size: 12px; }
+  .spacer { flex: 1; }
+  select, input, textarea, button {
+    font: inherit; color: var(--txt); background: var(--panel2);
+    border: 1px solid var(--line); border-radius: 7px; padding: 7px 10px;
+  }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { width: 100%; resize: vertical; }
+  button { cursor: pointer; background: var(--accent); border-color: transparent; color: #08121f; font-weight: 600; }
+  button:hover { filter: brightness(1.1); }
+  button.ghost { background: transparent; border-color: var(--line); color: var(--txt); font-weight: 500; }
+  button.small { padding: 4px 8px; font-size: 12px; }
+  button.danger { background: var(--bad); }
+  main { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px 20px 40px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h2 { font-size: 13px; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  label { font-size: 12px; color: var(--dim); display: block; margin-bottom: 4px; }
+  .field { margin-bottom: 12px; }
+  .mem {
+    border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px;
+    margin-bottom: 10px; background: var(--panel2);
+  }
+  .mem .content { margin-bottom: 6px; }
+  .mem .meta { font-size: 11px; color: var(--dim); display: flex; gap: 10px; flex-wrap: wrap; }
+  .pill { background: #24304d; border-radius: 20px; padding: 1px 9px; font-size: 11px; }
+  .pill.cat { background: #2b3a5e; color: #a9c6ff; }
+  .score { height: 5px; background: #24304d; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+  .score > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); }
+  #log { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; max-height: 420px; overflow-y: auto; }
+  .logline { padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .logline .t { color: var(--dim); }
+  .logline .tool { color: var(--accent); font-weight: 600; }
+  .logline .status { color: var(--ok); }
+  .logline .status.err { color: var(--bad); }
+  .logline pre { margin: 4px 0 0; color: var(--dim); white-space: pre-wrap; word-break: break-word; }
+  #tools { font-size: 12px; }
+  #tools .tool { padding: 7px 0; border-bottom: 1px solid var(--line); }
+  #tools .tool b { color: var(--accent); }
+  #tools .tool div { color: var(--dim); }
+  .empty { color: var(--dim); font-style: italic; padding: 8px 0; }
+  .banner { padding: 9px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; display: none; }
+  .banner.ok { display: block; background: #123728; color: #9ff0cd; border: 1px solid #1f5c43; }
+  .banner.err { display: block; background: #3a1a1a; color: #ffb3b3; border: 1px solid #6b2a2a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MemoryBridge</h1>
+  <span class="sub">portable memory layer &middot; live MCP</span>
+  <div class="spacer"></div>
+  <label style="margin:0">User (owner)</label>
+  <select id="user"></select>
+  <input id="newUser" placeholder="new user…" style="width:110px">
+  <button class="ghost small" id="addUser">Switch</button>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Add memory</h2>
+      <div id="addBanner" class="banner"></div>
+      <div class="field">
+        <label>Content (one concise fact)</label>
+        <textarea id="content" rows="2" placeholder="e.g. I prefer Python examples"></textarea>
+      </div>
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label>Category</label>
+          <select id="category">
+            <option>general</option><option>preference</option><option>goal</option>
+            <option>constraint</option><option>project</option><option>fact</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1">
+          <label>Source</label>
+          <input id="source" value="dashboard">
+        </div>
+      </div>
+      <button id="addBtn">Save memory</button>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Search (paraphrase-tolerant)</h2>
+      <div class="field">
+        <input id="query" placeholder="e.g. which language does he want sample code in?" style="width:100%">
+      </div>
+      <div class="row">
+        <div class="field"><label>top_k</label><input id="topk" type="number" value="5" min="1" max="20" style="width:70px"></div>
+        <div class="field"><label>min_score</label><input id="minscore" type="number" value="0.06" step="0.01" style="width:80px"></div>
+        <div class="field" style="flex:1"><label>&nbsp;</label><button id="searchBtn">Search</button></div>
+      </div>
+      <div id="searchResults"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Stored memories</h2>
+        <div class="row">
+          <button class="ghost small" id="refreshBtn">Refresh</button>
+          <button class="ghost small" id="exportBtn">Export</button>
+        </div>
+      </div>
+      <div id="memories" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>MCP tools this server exposes</h2>
+      <div id="tools" class="empty">Loading…</div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h2>Live action log</h2>
+      <div id="log" class="empty">No calls yet.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let USER = "alice";
+
+/* ---------- MCP plumbing ---------- */
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user: USER, ...body }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+
+// Calls one MCP tool through the server subprocess and logs the round-trip.
+async function callTool(name, args) {
+  const started = performance.now();
+  let payload, err = null;
+  try {
+    payload = (await api("/api/call", { tool: name, args })).result;
+  } catch (e) {
+    err = e.message;
+    payload = { error: e.message };
+  }
+  logCall(name, args, payload, err, performance.now() - started);
+  return payload;
+}
+
+function logCall(tool, args, result, err, ms) {
+  const box = $("log");
+  if (box.classList.contains("empty")) { box.textContent = ""; box.classList.remove("empty"); }
+  const div = document.createElement("div");
+  div.className = "logline";
+  const ok = !err && !(result && (result.status === "error" || result.status === "not_found"));
+  div.innerHTML =
+    `<span class="t">${new Date().toLocaleTimeString()}</span> ` +
+    `<span class="tool">${tool}</span> ` +
+    `<span class="t">(${ms.toFixed(0)}ms)</span><br>` +
+    `<span class="t">args:</span> ${esc(JSON.stringify(args))}` +
+    `<pre>${esc(JSON.stringify(result, null, 1))}</pre>` +
+    `<span class="status ${ok ? "" : "err"}">${err ? "FAILED: " + esc(err) : "→ " + (result.status || "ok")}</span>`;
+  box.prepend(div);
+}
+
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+/* ---------- rendering ---------- */
+
+function banner(id, msg, kind) {
+  const b = $(id);
+  b.textContent = msg;
+  b.className = "banner " + kind;
+  if (kind === "ok") setTimeout(() => (b.className = "banner"), 4000);
+}
+
+function renderMemories(list) {
+  const box = $("memories");
+  if (!list || !list.length) {
+    box.innerHTML = '<div class="empty">Nothing stored for this user yet.</div>';
+    return;
+  }
+  box.innerHTML = "";
+  list.forEach(m => {
+    const el = document.createElement("div");
+    el.className = "mem";
+    el.innerHTML =
+      `<div class="content">${esc(m.content)}</div>` +
+      `<div class="meta">` +
+        `<span class="pill cat">${esc(m.category)}</span>` +
+        `<span class="pill">${esc(m.source)}</span>` +
+        `<span>id ${esc(m.id)}</span>` +
+        `<span>updated ${esc(m.updated_at)}</span>` +
+      `</div>` +
+      `<div class="row" style="margin-top:8px">` +
+        `<button class="ghost small" data-act="edit">Edit</button>` +
+        `<button class="danger small" data-act="del">Delete</button>` +
+      `</div>`;
+    el.querySelector('[data-act="edit"]').onclick = () => startEdit(el, m);
+    el.querySelector('[data-act="del"]').onclick = async () => {
+      if (!confirm("Delete this memory permanently?")) return;
+      await callTool("delete_memory", { memory_id: m.id });
+      refresh();
+    };
+    box.appendChild(el);
+  });
+}
+
+function startEdit(el, m) {
+  const content = el.querySelector(".content");
+  const actions = el.querySelector(".row");
+  const ta = document.createElement("textarea");
+  ta.rows = 2; ta.value = m.content;
+  content.replaceWith(ta);
+  actions.innerHTML = "";
+  const save = document.createElement("button"); save.textContent = "Save";
+  const cancel = document.createElement("button"); cancel.className = "ghost"; cancel.textContent = "Cancel";
+  actions.append(save, cancel);
+  cancel.onclick = refresh;
+  save.onclick = async () => {
+    await callTool("update_memory", { memory_id: m.id, content: ta.value });
+    refresh();
+  };
+  ta.focus();
+}
+
+function renderSearch(results) {
+  const box = $("searchResults");
+  if (!results || !results.length) {
+    box.innerHTML = '<div class="empty">No relevant memories for that query.</div>';
+    return;
+  }
+  box.innerHTML = "";
+  results.forEach(r => {
+    const el = document.createElement("div");
+    el.className = "mem";
+    const pct = Math.min(100, Math.round((r.score || 0) * 200));
+    el.innerHTML =
+      `<div class="content">${esc(r.content)}</div>` +
+      `<div class="score"><span style="width:${pct}%"></span></div>` +
+      `<div class="meta"><span>score ${(+r.score).toFixed(4)}</span>` +
+      `<span class="pill cat">${esc(r.category)}</span><span>id ${esc(r.id)}</span></div>`;
+    box.appendChild(el);
+  });
+}
+
+/* ---------- actions ---------- */
+
+async function loadTools() {
+  const data = await api("/api/tools", {});
+  const box = $("tools");
+  box.classList.remove("empty");
+  box.innerHTML = data.tools
+    .map(t => `<div class="tool"><b>${esc(t.name)}</b><div>${esc(t.description.slice(0, 110))}…</div></div>`)
+    .join("");
+}
+
+async function refresh() {
+  const r = await callTool("list_memories", { limit: 100 });
+  renderMemories(r.memories || []);
+}
+
+function setUser(u) {
+  USER = u;
+  if (![...$("user").options].some(o => o.value === u)) {
+    const opt = document.createElement("option"); opt.value = opt.textContent = u;
+    $("user").appendChild(opt);
+  }
+  $("user").value = u;
+  refresh();
+  loadTools();
+}
+
+// Populate the user dropdown from the DB so shared-memory portability is visible.
+async function loadUsers() {
+  const data = await api("/api/users", {}).catch(() => null);
+  if (!data || !data.users) return;
+  const sel = $("user");
+  const keep = sel.value || USER;
+  sel.innerHTML = "";
+  for (const u of data.users) {
+    const opt = document.createElement("option"); opt.value = opt.textContent = u;
+    sel.appendChild(opt);
+  }
+  if (![...sel.options].some(o => o.value === keep)) {
+    const opt = document.createElement("option"); opt.value = opt.textContent = keep;
+    sel.appendChild(opt);
+  }
+  sel.value = keep;
+}
+
+/* ---------- wiring ---------- */
+
+$("addBtn").onclick = async () => {
+  const content = $("content").value.trim();
+  if (!content) return banner("addBanner", "Content cannot be empty.", "err");
+  const r = await callTool("add_memory", {
+    content, category: $("category").value, source: $("source").value || "dashboard",
+  });
+  if (r.status === "created") banner("addBanner", "Saved (id " + r.memory.id + ").", "ok");
+  else if (r.status === "duplicate") banner("addBanner", "Duplicate — not stored again. Existing id " + r.memory.id + ".", "err");
+  else if (r.status === "merged") banner("addBanner", "Near-duplicate merged. Existing id " + r.memory.id + ".", "err");
+  else banner("addBanner", r.reason || "Could not save.", "err");
+  if (r.status === "created") $("content").value = "";
+  refresh();
+};
+
+$("searchBtn").onclick = async () => {
+  const query = $("query").value.trim();
+  if (!query) return;
+  const r = await callTool("search_memories", {
+    query, top_k: +$("topk").value, min_score: +$("minscore").value,
+  });
+  renderSearch(r.results || []);
+};
+
+$("query").addEventListener("keydown", e => { if (e.key === "Enter") $("searchBtn").click(); });
+$("refreshBtn").onclick = refresh;
+$("exportBtn").onclick = () => callTool("export_memories", {});
+$("addUser").onclick = () => {
+  const u = $("newUser").value.trim();
+  if (u) { $("newUser").value = ""; setUser(u); }
+};
+$("user").onchange = e => setUser(e.target.value);
+
+setUser("alice");
+loadUsers();
+</script>
+</body>
+</html>

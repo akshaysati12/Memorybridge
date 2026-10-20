@@ -1,0 +1,5 @@
+# Runtime
+mcp>=1.9
+
+# Development / testing
+pytest>=8.0

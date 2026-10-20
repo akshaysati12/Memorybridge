@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memorybridge"
+version = "0.1.0"
+description = "MemoryBridge: a portable, user-controlled memory layer for AI assistants, exposed as an MCP server."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=1.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+]
+
+[project.scripts]
+memorybridge-server = "memorybridge.server:main"
+
+[tool.setuptools.packages.find]
+include = ["memorybridge*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

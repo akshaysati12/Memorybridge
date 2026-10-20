@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "memorybridge-alice": {
+      "command": "D:\\Memorybridge\\.venv\\Scripts\\python.exe",
+      "args": [
+        "-m",
+        "memorybridge.server",
+        "--user",
+        "alice",
+        "--db",
+        "D:\\Memorybridge\\data\\memorybridge.db"
+      ]
+    }
+  }
+}
